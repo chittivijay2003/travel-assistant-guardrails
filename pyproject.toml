@@ -1,0 +1,15 @@
+[project]
+name = "travel-assistant-guardrails"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.123.5",
+    "google-generativeai>=0.8.5",
+    "langchain-google-genai>=2.0.10",
+    "nemoguardrails>=0.19.0",
+    "pydantic>=2.12.5",
+    "requests>=2.32.5",
+    "uvicorn>=0.38.0",
+]
