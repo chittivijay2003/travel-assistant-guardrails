@@ -476,12 +476,12 @@ def safe_chat(message: str) -> dict:
     # 3. If safe, pass the message through NeMo Guardrails / LLM client
     try:
         # Use rails.generate() to interact with the LLM
-        # Ensure the LLM is asked to respond in the JSON format
+        # Ask for a simple travel answer without JSON formatting
         llm_response = rails.generate(
             messages=[
                 {
                     "role": "user",
-                    "content": f'{message}\n\nPlease respond in the following JSON format:\n{{\n  "answer": "your response here",\n  "safety_meta": {{\n    "blocked": false,\n    "reasons": [],\n    "details": null,\n    "redacted_input": null\n  }}\n}}',
+                    "content": message,
                 }
             ]
         )
@@ -489,22 +489,43 @@ def safe_chat(message: str) -> dict:
         # Extract the response content
         response_content = llm_response.get("content", "")
 
-        # Parse the JSON response
+        # Clean up the response - remove JSON code blocks if present
         import json
+        import re
 
-        try:
-            response_data = json.loads(response_content)
-        except json.JSONDecodeError:
-            # If not valid JSON, wrap the response
-            response_data = {
-                "answer": response_content,
-                "safety_meta": {
-                    "blocked": False,
-                    "reasons": [],
-                    "details": None,
-                    "redacted_input": None,
-                },
-            }
+        # Try to extract JSON from markdown code blocks
+        json_match = re.search(
+            r"```(?:json)?\s*(\{.*?\})\s*```", response_content, re.DOTALL
+        )
+        if json_match:
+            try:
+                response_data = json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                # If extraction fails, use raw response
+                response_data = {
+                    "answer": response_content,
+                    "safety_meta": {
+                        "blocked": False,
+                        "reasons": [],
+                        "details": None,
+                        "redacted_input": None,
+                    },
+                }
+        else:
+            # Try parsing as direct JSON
+            try:
+                response_data = json.loads(response_content)
+            except json.JSONDecodeError:
+                # If not valid JSON, wrap the response as answer
+                response_data = {
+                    "answer": response_content,
+                    "safety_meta": {
+                        "blocked": False,
+                        "reasons": [],
+                        "details": None,
+                        "redacted_input": None,
+                    },
+                }
 
         # 4. Validate the JSON structure using validate_response_json
         validated_response = validate_response_json(response_data)
