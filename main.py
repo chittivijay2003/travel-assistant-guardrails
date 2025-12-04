@@ -397,7 +397,6 @@ def validate_response_json(data: dict) -> SafeChatResponse:
                 "blocked": True,
                 "reasons": ["validation_error"],
                 "details": f"Response validation failed: {str(e)}",
-                "redacted_input": None,
             },
         }
         return SafeChatResponse(**fallback_data)
@@ -436,26 +435,26 @@ def safe_chat(message: str) -> dict:
         # If PII is found, DO NOT send it to the LLM
         redacted = redact_pii(message)
         reasons = []
-        details_parts = []
 
         if has_credit_card:
             reasons.append("pii_credit_card")
-            details_parts.append("credit card")
 
         if has_passport:
             reasons.append("pii_passport")
-            details_parts.append("passport")
 
-        details = (
-            f"{' and '.join(details_parts).capitalize()} information found in input."
-        )
+        # Use appropriate message based on PII type
+        if has_credit_card:
+            answer = "For your security, I cannot process or store credit card numbers. Please use a secure payment portal instead."
+        elif has_passport:
+            answer = "For your security, I cannot process or store passport information. Please handle such sensitive data through secure channels."
+        else:
+            answer = "I detected sensitive information in your message. For your safety, I cannot process this request."
 
         return {
-            "answer": f"I detected sensitive information ({', '.join(details_parts)}) in your message. For your safety, I cannot process this request.",
+            "answer": answer,
             "safety_meta": {
                 "blocked": True,
                 "reasons": reasons,
-                "details": details,
                 "redacted_input": redacted,
             },
         }
@@ -464,12 +463,11 @@ def safe_chat(message: str) -> dict:
     if detect_prompt_injection(message):
         # If detected, return a blocked response
         return {
-            "answer": "I detected a potential prompt injection attempt. I cannot process this request.",
+            "answer": "I cannot follow instructions that attempt to bypass safety policies.",
             "safety_meta": {
                 "blocked": True,
-                "reasons": ["prompt_injection"],
-                "details": "Suspicious patterns indicating prompt injection detected.",
-                "redacted_input": None,
+                "reasons": ["prompt_injection_attempt"],
+                "details": "User tried to override system instructions.",
             },
         }
 
@@ -507,8 +505,7 @@ def safe_chat(message: str) -> dict:
                     "safety_meta": {
                         "blocked": False,
                         "reasons": [],
-                        "details": None,
-                        "redacted_input": None,
+                        "details": "No PII or prompt injection detected.",
                     },
                 }
         else:
@@ -522,8 +519,7 @@ def safe_chat(message: str) -> dict:
                     "safety_meta": {
                         "blocked": False,
                         "reasons": [],
-                        "details": None,
-                        "redacted_input": None,
+                        "details": "No PII or prompt injection detected.",
                     },
                 }
 
@@ -588,7 +584,9 @@ class ChatResponseModel(BaseModel):
     safety_meta: SafetyMeta
 
 
-@app.post("/safe-chat", response_model=ChatResponseModel)
+@app.post(
+    "/safe-chat", response_model=ChatResponseModel, response_model_exclude_none=True
+)
 def safe_chat_handler(req: ChatRequest):
     """POST endpoint that accepts user messages and returns safe LLM responses.
 
@@ -600,7 +598,10 @@ def safe_chat_handler(req: ChatRequest):
     if response["safety_meta"]["blocked"]:
         print("⚠️  BLOCKED REQUEST:")
         print(f"   Reasons: {response['safety_meta']['reasons']}")
-        print(f"   Details: {response['safety_meta']['details']}")
+        if "details" in response["safety_meta"]:
+            print(f"   Details: {response['safety_meta']['details']}")
+        if "redacted_input" in response["safety_meta"]:
+            print(f"   Redacted: {response['safety_meta']['redacted_input'][:100]}...")
         print(f"   Message: {req.message[:100]}...")
 
     return response
