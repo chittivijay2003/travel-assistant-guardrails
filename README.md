@@ -2,6 +2,8 @@
 
 A secure LLM-powered travel assistant with comprehensive safety guardrails including PII detection, prompt injection blocking, and response validation using NeMo Guardrails and Google Gemini.
 
+**🔗 Repository:** [https://github.com/chittivijay2003/travel-assistant-guardrails](https://github.com/chittivijay2003/travel-assistant-guardrails)
+
 ## Features
 
 ✅ **PII Detection & Redaction**
